@@ -6,10 +6,12 @@ import (
 	"net"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/reflection"
 
 	"github.com/arifullov/chat-server/internal/closer"
 	"github.com/arifullov/chat-server/internal/config"
+	"github.com/arifullov/chat-server/internal/interceptor"
 	desc "github.com/arifullov/chat-server/pkg/chat_v1"
 )
 
@@ -64,7 +66,12 @@ func (a *App) initServiceProvider(_ context.Context) error {
 }
 
 func (a *App) initGRPCServer(ctx context.Context) error {
-	a.grpcServer = grpc.NewServer()
+	a.grpcServer = grpc.NewServer(
+		grpc.Creds(insecure.NewCredentials()),
+		grpc.ChainUnaryInterceptor(
+			interceptor.NewAuthInterceptor(a.serviceProvider.AuthClient(ctx)).Unary(),
+		),
+	)
 	reflection.Register(a.grpcServer)
 	desc.RegisterChatV1Server(a.grpcServer, a.serviceProvider.UserImpl(ctx))
 	return nil

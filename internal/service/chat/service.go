@@ -1,7 +1,7 @@
 package chat
 
 import (
-	"github.com/arifullov/chat-server/internal/client/db"
+	"github.com/arifullov/chat-server/internal/clients/db"
 	"github.com/arifullov/chat-server/internal/repository"
 	"github.com/arifullov/chat-server/internal/service"
 )

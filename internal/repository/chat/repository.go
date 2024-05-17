@@ -5,7 +5,7 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 
-	"github.com/arifullov/chat-server/internal/client/db"
+	"github.com/arifullov/chat-server/internal/clients/db"
 	"github.com/arifullov/chat-server/internal/model"
 	"github.com/arifullov/chat-server/internal/repository"
 )

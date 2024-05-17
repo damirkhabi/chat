@@ -4,22 +4,30 @@ import (
 	"context"
 	"log"
 
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+
+	"github.com/arifullov/chat-server/internal/clients/db"
+	"github.com/arifullov/chat-server/internal/clients/db/pg"
+	"github.com/arifullov/chat-server/internal/clients/db/transaction"
+	"github.com/arifullov/chat-server/pkg/access_v1"
+
 	"github.com/arifullov/chat-server/internal/api/chat"
-	"github.com/arifullov/chat-server/internal/client/db"
-	"github.com/arifullov/chat-server/internal/client/db/pg"
-	"github.com/arifullov/chat-server/internal/client/db/transaction"
+	"github.com/arifullov/chat-server/internal/clients/grpc/auth"
 	"github.com/arifullov/chat-server/internal/closer"
 	"github.com/arifullov/chat-server/internal/config"
 	"github.com/arifullov/chat-server/internal/repository"
-	"github.com/arifullov/chat-server/internal/service"
-
 	chatRepository "github.com/arifullov/chat-server/internal/repository/chat"
+	"github.com/arifullov/chat-server/internal/service"
 	chatService "github.com/arifullov/chat-server/internal/service/chat"
 )
 
 type serviceProvider struct {
-	pgConfig   config.PGConfig
-	grpcConfig config.GRPCConfig
+	pgConfig         config.PGConfig
+	grpcConfig       config.GRPCConfig
+	authClientConfig config.AuthClientConfig
+
+	authClient auth.Client
 
 	dbClient       db.Client
 	txManager      db.TxManager
@@ -54,6 +62,33 @@ func (s *serviceProvider) GRPCConfig() config.GRPCConfig {
 		s.grpcConfig = grpcConfig
 	}
 	return s.grpcConfig
+}
+
+func (s *serviceProvider) AuthClientConfig() config.AuthClientConfig {
+	if s.authClientConfig == nil {
+		authClientConfig, err := config.NewAuthClientConfig()
+		if err != nil {
+			log.Fatalf("failed to get auth client config: %s", err.Error())
+		}
+		s.authClientConfig = authClientConfig
+	}
+	return s.authClientConfig
+}
+
+func (s *serviceProvider) AuthClient(ctx context.Context) auth.Client {
+	if s.authClient == nil {
+		creds := grpc.WithTransportCredentials(insecure.NewCredentials())
+
+		conn, err := grpc.DialContext(ctx, s.AuthClientConfig().Address(), creds)
+		if err != nil {
+			log.Fatalf("failed to connect to grpc %s: %s", s.AuthClientConfig().Address(), err.Error())
+		}
+		closer.Add(conn.Close)
+
+		client := access_v1.NewAccessV1Client(conn)
+		s.authClient = auth.NewClient(client)
+	}
+	return s.authClient
 }
 
 func (s *serviceProvider) DBClient(ctx context.Context) db.Client {
