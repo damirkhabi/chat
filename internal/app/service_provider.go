@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -26,6 +27,7 @@ type serviceProvider struct {
 	pgConfig         config.PGConfig
 	grpcConfig       config.GRPCConfig
 	authClientConfig config.AuthClientConfig
+	jaegerConfig     config.JaegerConfig
 
 	authClient auth.Client
 
@@ -75,11 +77,27 @@ func (s *serviceProvider) AuthClientConfig() config.AuthClientConfig {
 	return s.authClientConfig
 }
 
+func (s *serviceProvider) JaegerConfig() config.JaegerConfig {
+	if s.jaegerConfig == nil {
+		cfg, err := config.NewJaegerConfig()
+		if err != nil {
+			log.Fatalf("failed to get jaeger config: %s", err.Error())
+		}
+		s.jaegerConfig = cfg
+	}
+	return s.jaegerConfig
+}
+
 func (s *serviceProvider) AuthClient(ctx context.Context) auth.Client {
 	if s.authClient == nil {
 		creds := grpc.WithTransportCredentials(insecure.NewCredentials())
 
-		conn, err := grpc.DialContext(ctx, s.AuthClientConfig().Address(), creds)
+		conn, err := grpc.DialContext(
+			ctx,
+			s.AuthClientConfig().Address(),
+			creds,
+			grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+		)
 		if err != nil {
 			log.Fatalf("failed to connect to grpc %s: %s", s.AuthClientConfig().Address(), err.Error())
 		}

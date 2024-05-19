@@ -14,3 +14,14 @@ services:
       - "${PG_PORT}:5432"
     volumes:
       - postgres_volume:/var/lib/postgresql/data
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.48
+    ports:
+      - "5775:5775/udp" # accept zipkin.thrift over compact thrift protocol
+      - "6831:6831/udp" # jaeger-client accept jaeger.thrift over compact thrift protocol
+      - "6832:6832/udp" # accept jaeger.thrift over binary thrift protocol
+      - "5778:5778" # serve configs
+      - "16686:16686" # web
+      - "14268:14268" # accept jaeger.thrift directly from clients
+      - "9411:9411" # zipkin Optional

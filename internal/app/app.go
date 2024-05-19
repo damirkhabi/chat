@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/reflection"
@@ -12,6 +13,7 @@ import (
 	"github.com/arifullov/chat-server/internal/closer"
 	"github.com/arifullov/chat-server/internal/config"
 	"github.com/arifullov/chat-server/internal/interceptor"
+	"github.com/arifullov/chat-server/internal/tracing"
 	desc "github.com/arifullov/chat-server/pkg/chat_v1"
 )
 
@@ -43,6 +45,7 @@ func (a *App) initDeps(ctx context.Context) error {
 		a.initConfig,
 		a.initServiceProvider,
 		a.initGRPCServer,
+		a.initTracing,
 	}
 	for _, init := range inits {
 		if err := init(ctx); err != nil {
@@ -71,10 +74,19 @@ func (a *App) initGRPCServer(ctx context.Context) error {
 		grpc.ChainUnaryInterceptor(
 			interceptor.NewAuthInterceptor(a.serviceProvider.AuthClient(ctx)).Unary(),
 		),
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 	)
 	reflection.Register(a.grpcServer)
 	desc.RegisterChatV1Server(a.grpcServer, a.serviceProvider.UserImpl(ctx))
 	return nil
+}
+
+func (a *App) initTracing(_ context.Context) error {
+	return tracing.Init(
+		a.serviceProvider.JaegerConfig().CollectorEndpoint(),
+		a.serviceProvider.JaegerConfig().ServiceName(),
+		a.serviceProvider.JaegerConfig().DeploymentEnvironment(),
+	)
 }
 
 func (a *App) runGRPCServer() error {
